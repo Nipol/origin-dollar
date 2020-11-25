@@ -6,6 +6,8 @@ pragma solidity 0.5.11;
  * @dev Implements an elastic supply
  * @author Origin Protocol Inc
  */
+
+import "hardhat/console.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import {
     Initializable
@@ -448,6 +450,9 @@ contract OUSD is Initializable, InitializableToken, Governable {
         onlyVault
         returns (uint256)
     {
+        console.log('Current total supply', _totalSupply);
+        console.log('New total supply', _newTotalSupply);
+
         require(_totalSupply > 0, "Cannot increase 0 supply");
 
         if (_totalSupply == _newTotalSupply) {
@@ -463,9 +468,15 @@ contract OUSD is Initializable, InitializableToken, Governable {
 
         if (_totalSupply > MAX_SUPPLY) _totalSupply = MAX_SUPPLY;
 
+        console.log('Rebasing credits per token before', rebasingCreditsPerToken);
+        console.log('Non rebasing supply', nonRebasingSupply);
+
         rebasingCreditsPerToken = rebasingCredits.divPrecisely(
             _totalSupply.sub(nonRebasingSupply)
         );
+
+        console.log('Rebasing credits', rebasingCredits);
+        console.log('Rebasing credits per token after', rebasingCreditsPerToken);
 
         require(rebasingCreditsPerToken > 0, "Invalid change in supply");
 

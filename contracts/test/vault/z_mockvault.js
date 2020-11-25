@@ -1,8 +1,8 @@
-const { mockVaultFixture } = require("../_fixture");
+const { defaultFixture, mockVaultFixture } = require("../_fixture");
 const { expect } = require("chai");
-const { utils } = require("ethers");
+const { BigNumber, utils } = require("ethers");
 
-const { loadFixture } = require("../helpers");
+const { daiUnits, loadFixture } = require("../helpers");
 
 describe("Vault mock with rebase", async () => {
   it("Should increase users balance on rebase after increased Vault value", async () => {
@@ -24,48 +24,61 @@ describe("Vault mock with rebase", async () => {
   });
 
   it.only("should not tranfer more than expected", async () => {
-    let { ousd, vault, matt, josh, anna, tusd } = await loadFixture(
-      mockVaultFixture
+    let { ousd, vault, matt, josh, anna, dai } = await loadFixture(
+      defaultFixture
     );
 
-    let i = 0
+    let i = 0;
     const logBalance = async () => {
-      console.log('----', i++)
+      console.log("----", i++);
       for (const user of [josh, matt, anna]) {
-        console.log(utils.formatUnits(await ousd.balanceOf(await user.getAddress()), 18))
+        console.log(
+          utils.formatUnits(await ousd.balanceOf(await user.getAddress()), 18)
+        );
       }
-      console.log('----', i)
-    }
+      console.log("----", i);
+      console.log("Vault total value", Number(await vault.totalValue()));
+      console.log(
+        "Vault dai balance",
+        Number(await dai.balanceOf(vault.address))
+      );
+    };
 
     for (const user of [josh, matt]) {
       // Clear the existing balances
-      await vault.connect(user).redeem(await ousd.balanceOf(await user.getAddress()));
+      await vault.connect(user).redeemAll();
     }
 
-    console.log('Minting 1000 tokens')
+    const tokens = BigNumber.from(
+      "333333333333333333333333333333333333333333333333333333"
+    );
     for (const user of [josh, matt, anna]) {
-      const tokens = '1000';
-
-      await tusd.connect(user).mint(tokens);
-      await tusd.connect(user).approve(vault.address, tokens);
-      await vault.connect(user).mint(tusd.address, tokens);
+      await dai.connect(user).mint(tokens);
+      await dai.connect(user).approve(vault.address, tokens);
+      await vault.connect(user).mint(dai.address, tokens);
     }
 
-    await logBalance()
+    await logBalance();
 
-    console.log('Setting totalSupply to 99 and doing a rebase...')
-    await vault.setTotalValue(99);
     await vault.rebase();
 
-    console.log('rebaseOptOut')
-    await ousd.connect(matt).rebaseOptOut()
-    await ousd.connect(josh).rebaseOptOut()
+    await logBalance();
 
-    console.log('Setting totalSupply to 99 and doing a rebase...')
-    await vault.setTotalValue('1233242342321323232323234434343412332423423213232323232');
+    // Add another 15 DAI to Vault without a mint to simulate a changeSupply(15)
+    await dai.connect(josh).transfer(vault.address, daiUnits("15"));
     await vault.rebase();
 
-    await logBalance()
+    await logBalance();
+
+    const secondMint = daiUnits("16");
+    await dai.connect(josh).mint(secondMint);
+    await dai.connect(josh).approve(vault.address, secondMint);
+    await vault.connect(josh).mint(dai.address, secondMint);
+
+    const joshTotal = tokens.add(secondMint);
+    console.log("Josh estimated total", Number(joshTotal));
+
+    await logBalance();
 
     // console.log('Minting 16 tokens...')
     // await tusd.connect(anna).mint(16)
